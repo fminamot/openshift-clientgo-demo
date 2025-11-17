@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-func getProjectClienSet() (*projectclientset.Clientset, error) {
+func getProjectClientSet() (*projectclientset.Clientset, error) {
 	var kubeconfig *string
 	if home := homedir.HomeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -89,7 +89,7 @@ func main() {
 	var err error
 
 	// 1. Getting OpenShift Project client-set
-	clientset, err := getProjectClienSet()
+	clientset, err := getProjectClientSet()
 	if err != nil {
 		log.Fatalf("Error creating project client: %v", err)
 	}
