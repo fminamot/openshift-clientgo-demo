@@ -9,11 +9,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"time"
 
 	projectv1 "github.com/openshift/api/project/v1"
 	projectclientset "github.com/openshift/client-go/project/clientset/versioned"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
@@ -46,17 +48,20 @@ func createProjectRequest(name string, displayName string, description string) *
 	return &projectRequest
 }
 
-func createProjectsFromCSV(clientset *projectclientset.Clientset, csvFile string) error {
+func createProjectsFromCSV(clientset *projectclientset.Clientset, csvFile string) (map[string]int, error) {
+	pnames := map[string]int{}
+	counter := 0
+
 	file, err := os.Open(csvFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
 	r := csv.NewReader(file)
 
 	if _, err := r.Read(); err != nil {
 		if err != io.EOF {
-			return err
+			return nil, err
 		}
 	}
 
@@ -72,46 +77,76 @@ func createProjectsFromCSV(clientset *projectclientset.Clientset, csvFile string
 
 		newProject, err := clientset.ProjectV1().ProjectRequests().Create(ctx, pr, metav1.CreateOptions{})
 		if err != nil {
-			return err
+			return nil, err
 		}
+
+		pnames[newProject.Name] = counter
+		counter++
 
 		fmt.Printf("%s created\n", newProject.Name)
 	}
-	return nil
+	return pnames, nil
 }
 
-const csvFile = "projects.csv"
+func pointerInt64(i int64) *int64 {
+	return &i
+}
+
+/*
+func printProject(p *projectv1.Project) {
+	displayName := p.Annotations["openshift.io/display-name"]
+	description := p.Annotations["openshift.io/description"]
+	fmt.Printf("%s\t%s\t%s\n", p.Name, displayName, description)
+}
+*/
 
 func main() {
+	const csvFile = "../projects.csv"
 	var err error
 
-	// 1. Getting OpenShift Project client-set
 	clientset, err := getProjectClientSet()
 	if err != nil {
 		log.Fatalf("Error creating project client: %v", err)
 	}
 
-	// 2. Creating projects from CSV file
-	err = createProjectsFromCSV(clientset, csvFile)
+	ctx := context.Background()
+
+	fmt.Println("Creating a project watch")
+	watcher, err := clientset.ProjectV1().Projects().Watch(ctx, metav1.ListOptions{
+		TimeoutSeconds: pointerInt64(20), // 20 sec
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	defer watcher.Stop()
+
+	fmt.Println("Creating projects")
+	pnames, err := createProjectsFromCSV(clientset, csvFile)
 	if err != nil {
 		log.Fatalf("Error creating projects: %v", err)
 	}
 
-	time.Sleep(5 * time.Second)
+	fmt.Println("Waiting for project events")
+	for event := range watcher.ResultChan() {
+		proj, ok := event.Object.(*projectv1.Project)
+		if !ok {
+			continue
+		}
 
-	// 3 Getting Project list
-	ctx := context.Background()
-	projects, err := clientset.ProjectV1().Projects().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		log.Fatalf("Error listing projects %v", err)
+		switch event.Type {
+		case watch.Added, watch.Modified:
+			_, found := pnames[proj.Name]
+			if found && proj.Status.Phase == corev1.NamespaceActive {
+				fmt.Printf("%s is ready (phase: %s)\n", proj.Name, proj.Status.Phase)
+				delete(pnames, proj.Name)
+				if len(pnames) == 0 {
+					return
+				}
+			}
+		case watch.Deleted:
+			fmt.Printf("%s is deleted unexpectedly\n", proj.Name)
+		}
 	}
-
-	// 4. Printing Project info
-	fmt.Printf("NAME\tDISPLAY NAME\tDESCRIPTION\n")
-	fmt.Println("----------------------------------------------")
-	for _, p := range projects.Items {
-		displayName := p.Annotations["openshift.io/display-name"]
-		description := p.Annotations["openshift.io/description"]
-		fmt.Printf("%s\t%s\t%s\n", p.Name, displayName, description)
-	}
+	fmt.Println("Timeout")
 }
