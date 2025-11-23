@@ -112,14 +112,14 @@ func main() {
 	ctx := context.Background()
 
 	fmt.Println("Creating a project watch")
-	watcher, err := clientset.ProjectV1().Projects().Watch(ctx, metav1.ListOptions{
+	w, err := clientset.ProjectV1().Projects().Watch(ctx, metav1.ListOptions{
 		TimeoutSeconds: pointerInt64(20), // 20 sec
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	defer watcher.Stop()
+	defer w.Stop()
 
 	fmt.Println("Creating projects")
 	pnames, err := createProjectsFromCSV(clientset, csvFile)
@@ -128,7 +128,7 @@ func main() {
 	}
 
 	fmt.Println("Waiting for project events")
-	for event := range watcher.ResultChan() {
+	for event := range w.ResultChan() {
 		proj, ok := event.Object.(*projectv1.Project)
 		if !ok {
 			continue
