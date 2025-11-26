@@ -56,9 +56,11 @@ func pointerInt64(i int64) *int64 {
 }
 
 func main() {
-	const projectName = "myproject"
-	const displayName = "MyProject"
-	const description = "This is a description of myproject"
+	const (
+		projectName = "myproject"
+		displayName = "MyProject"
+		description = "This is a description of myproject"
+	)
 
 	clientset, err := getProjectClientSet()
 	if err != nil {
