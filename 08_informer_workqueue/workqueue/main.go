@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"path/filepath"
+	"time"
 
 	projectv1 "github.com/openshift/api/project/v1"
 	projectclientset "github.com/openshift/client-go/project/clientset/versioned"
@@ -55,7 +56,7 @@ func enqueue(obj interface{}, queue workqueue.TypedRateLimitingInterface[string]
 	queue.Add(key)
 }
 
-func checkProject(workerIndex int, p *projectv1.Project) bool {
+func doBusinessLogic(workerIndex int, p *projectv1.Project) bool {
 	printProject(workerIndex, p)
 	return true
 }
@@ -69,6 +70,7 @@ func processNextItem(workerIndex int, lister projectlisters.ProjectLister, queue
 	defer queue.Done(key)
 
 	p, err := lister.Get(key)
+
 	if errors.IsNotFound(err) {
 		log.Printf("%s not found in the cache\n", key)
 		queue.Forget(key)
@@ -80,11 +82,12 @@ func processNextItem(workerIndex int, lister projectlisters.ProjectLister, queue
 		return false
 	}
 
-	if ok := checkProject(workerIndex, p); ok {
+	if ok := doBusinessLogic(workerIndex, p); ok {
 		queue.Forget(key)
 	} else {
 		queue.AddRateLimited(key)
 	}
+
 	return true
 }
 
@@ -126,6 +129,7 @@ func main() {
 		log.Println("Defer func called")
 		cancel()
 		queue.ShutDown()
+		time.Sleep(time.Second) // Wait until all worker finished to see the log messages
 		factory.Shutdown()
 		log.Println("Informer stopped")
 	}()
@@ -151,6 +155,7 @@ func main() {
 	}
 
 	workers := 3
+
 	log.Println("Ctrl-C will stop this program")
 	for i := 0; i < workers; i++ {
 		go worker(ctx, i, lister, queue)
@@ -158,5 +163,4 @@ func main() {
 
 	<-ctx.Done()
 	log.Println("Application will shut down")
-
 }
