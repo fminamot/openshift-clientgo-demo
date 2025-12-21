@@ -35,7 +35,6 @@ func getProjectClientSet() (*projectclientset.Clientset, error) {
 }
 
 func main() {
-	const csvFile = "../projects.csv"
 	var err error
 
 	stopCh := make(chan struct{})

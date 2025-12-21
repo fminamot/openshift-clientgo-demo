@@ -84,7 +84,7 @@ func main() {
 		log.Println("Failed to sync cache")
 	}
 
-	log.Println("Ctrl-C will stop this program")
+	// Ctrl-C will stop this program
 	for {
 		select {
 		case <-ctx.Done():

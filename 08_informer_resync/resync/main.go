@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"path/filepath"
+	"time"
 
 	projectv1 "github.com/openshift/api/project/v1"
 	projectclientset "github.com/openshift/client-go/project/clientset/versioned"
@@ -46,7 +47,7 @@ func main() {
 	}
 
 	log.Println("Creating informer from informer factory")
-	factory := projectinformers.NewSharedInformerFactory(clientset, 10) // resync 10 sec
+	factory := projectinformers.NewSharedInformerFactory(clientset, 10*time.Second) // resync 10 sec
 	informer := factory.Project().V1().Projects().Informer()
 
 	defer func() {
@@ -84,7 +85,7 @@ func main() {
 		log.Println("Failed to sync cache")
 	}
 
-	log.Println("Timeout in 1 min. Ctrl-C will stop this program")
+	// Ctrl-C will stop this program
 	for {
 		select {
 		case <-ctx.Done():
