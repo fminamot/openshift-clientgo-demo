@@ -56,9 +56,9 @@ func enqueue(obj interface{}, queue workqueue.TypedRateLimitingInterface[string]
 	queue.Add(key)
 }
 
-func checkProject(workerIndex int, p *projectv1.Project) bool {
+func doBusinessLogic(workerIndex int, p *projectv1.Project) bool {
 	printProject(workerIndex, p)
-	return true
+	return false // true
 }
 
 func processNextItem(workerIndex int, lister projectlisters.ProjectLister, queue workqueue.TypedRateLimitingInterface[string]) bool {
@@ -81,9 +81,8 @@ func processNextItem(workerIndex int, lister projectlisters.ProjectLister, queue
 		return false
 	}
 
-	if ok := checkProject(workerIndex, p); ok {
-		//queue.Forget(key)
-		queue.AddRateLimited(key) // force to fail
+	if ok := doBusinessLogic(workerIndex, p); ok {
+		queue.Forget(key)
 	} else {
 		queue.AddRateLimited(key)
 	}
@@ -159,7 +158,7 @@ func main() {
 		log.Println("Failed to sync cache")
 	}
 
-	workers := 3
+	workers := 1
 	log.Println("Ctrl-C will stop this program")
 	for i := 0; i < workers; i++ {
 		go worker(ctx, i, lister, queue)
