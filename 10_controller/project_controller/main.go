@@ -70,7 +70,7 @@ func (c *ProjectController) projectUpdated(oldObj interface{}, newObj interface{
 func printProject(p *apiprojectv1.Project) {
 	dn := p.Annotations["openshift.io/display-name"]
 	status := p.Status.Phase
-	log.Printf("name=%s, displayName=%s, status=%s\n", p.Name, dn, status)
+	log.Printf("[worker] name=%s, displayName=%s, status=%s\n", p.Name, dn, status)
 }
 
 func (c *ProjectController) syncHandler(ctx context.Context, key string) bool {
@@ -87,19 +87,18 @@ func (c *ProjectController) syncHandler(ctx context.Context, key string) bool {
 		return false
 	}
 
-	// display-nameが空であれば、"<requester>'s <project>"という文字列を設定
-	dn := p.Annotations["openshift.io/display-name"]
+	printProject(p)
 
+	// display-nameが設定されていなければ、"<requester>'s <project>"という文字列をセット
+	dn := p.Annotations["openshift.io/display-name"]
 	if dn == "" {
 		newObj := p.DeepCopy()
 		req := p.Annotations["openshift.io/requester"]
 		newObj.Annotations["openshift.io/display-name"] = req + "'s " + newObj.Name
-		updated, _ := c.client.ProjectV1().Projects().Update(ctx, newObj, metav1.UpdateOptions{})
-		printProject(updated)
+		c.client.ProjectV1().Projects().Update(ctx, newObj, metav1.UpdateOptions{})
 		return true
 	}
 
-	printProject(p)
 	return true
 }
 
